@@ -1,0 +1,224 @@
+<html>
+    <head>
+        <style>
+            body {
+                margin: 0;
+                overflow: hidden;
+            }
+        </style>
+    </head>
+    <body data-server-no-reload>
+        <script type="module">
+            import * as THREE from "https://web.cs.manchester.ac.uk/three/three.js-master/build/three.module.js";
+            import {OrbitControls} from "https://web.cs.manchester.ac.uk/three/three.js-master/examples/jsm/controls/OrbitControls.js";
+
+            // Declare global variables
+            // For rendering
+            var scene;
+            var camera;
+            var renderer;
+
+            var sunMesh;
+            var earthMesh;
+            var moonMesh;
+
+            var earthSystem;
+
+            // For controls
+            var controls;
+
+
+
+            // Global constants
+            // Physical attributes
+            const moonOrbitRadius = 40;
+            const moonOrbitSpeed = 0.03;
+
+            const earthOrbitRadius = 200;
+            const earthOrbitSpeed = 0.00005;
+
+            const sunRotationSpeed = 0.001;
+
+            const earthOrbitPath = new THREE.EllipseCurve(
+                0, 0,          // (x,y) centre point
+                earthOrbitRadius, earthOrbitRadius - 50,      
+                // (x,y) radius
+                0, 2 * Math.PI // Start and end angle
+            )
+
+            // Textures
+            const loader = new THREE.TextureLoader();
+            const sunTexture = loader.load("sun_texture.jpg");
+            const earthTexture = loader.load("earth_texture.jpg");
+            const moonTexture = loader.load("moon_texture.jpg");
+
+            function init() {
+                scene = new THREE.Scene();
+                
+                // Group for the Earth and Moon to be kept as one object
+                earthSystem = new THREE.Group();
+                earthSystem.position.set(earthOrbitRadius, 0, 0);
+
+                // PerspectiveCamera parameters: 
+                // - Vertical FOV (field of vision) in degrees, 
+                // - Aspect ratio (width/height of camera's view), 
+                // - Near clipping plane distance,
+                // - Far clipping plane distance
+                camera = new THREE.PerspectiveCamera(
+                    75, 
+                    window.innerWidth / window.innerHeight,
+                    0.1,
+                    10000
+                );
+
+                // Sets camera depth (how close it is to the object)
+                camera.position.x = 0;
+                camera.position.y = 30;
+                camera.position.z = 500;
+
+                renderer = new THREE.WebGLRenderer();
+
+                renderer.setClearColor("blue", 0.1);
+                // (colour, opacity)
+                
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                
+                // Add renderer to DOM
+                document.body.appendChild(renderer.domElement);
+
+                shaderSun();
+                shaderEarth();
+                shaderMoon();
+                scene.add(earthSystem);
+
+                earthOrbitLine();
+
+                addPointLight();
+                addAmbientLight();
+
+                initControls();
+            }
+
+            function initControls() {
+                controls = new OrbitControls(camera, renderer.domElement);
+                controls.autoRotate = true;
+            }
+
+            function shaderSun() {
+                var sunGeometry = new THREE.SphereGeometry(109, 400, 200);
+                // (radius, widthSegments, heightSegments)
+
+                var sunMaterial = new THREE.MeshStandardMaterial(
+                    {
+                        // Sets emmissive colour (light being emitted)
+                        emissive: 0xffd700,
+
+                        // Applies a texture that defines emissive areas. White
+                        // areas in the texture will emit light, black won't. 
+                        emissiveMap: sunTexture,
+                        
+                        // Controls brightness of the emissive effect. Can be >1
+                        emissiveIntensity: 1,
+
+                        // If true, only shows the edges. Given false, renders
+                        // as solid object. 
+                        wireframe: false,
+                    }
+                );
+
+                sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
+                scene.add(sunMesh);
+            }
+
+            function shaderEarth() {
+                var earthGeometry = new THREE.SphereGeometry(25, 50, 50);
+                var earthMaterial = new THREE.MeshPhongMaterial({
+                    map: earthTexture,
+                    // color: 0x0000ff,
+                })
+
+                earthMesh = new THREE.Mesh(earthGeometry, earthMaterial);
+
+                earthSystem.add(earthMesh);
+            }
+
+            function shaderMoon() {
+                var moonGeometry = new THREE.SphereGeometry(5, 40, 20);
+                var moonMaterial = new THREE.MeshPhongMaterial({
+                    map: moonTexture,
+                    // color: 0xbebeb6,
+                })
+
+                moonMesh = new THREE.Mesh(moonGeometry, moonMaterial);
+
+                moonMesh.position.set(0, moonOrbitRadius, 0);
+                earthSystem.add(moonMesh);
+            }
+            
+            function earthOrbitLine() {
+                const points = earthOrbitPath.getPoints(100);
+
+                const earthPathGeometry = 
+                    new THREE.BufferGeometry().setFromPoints(points);
+
+                const earthPathMaterial = new THREE.LineBasicMaterial({
+                    color: 0xffffff,
+                })
+
+                const path = 
+                    new THREE.Line(earthPathGeometry, earthPathMaterial);
+
+                path.rotateX(0.5 * Math.PI);
+
+                scene.add(path);
+
+                // earthOrbitPathGeometry = new THREE.BufferGeometry();
+            }
+
+            function addPointLight() {
+                // Decay 2 follows real-world falloff.
+                const light = new THREE.PointLight(0xffffff, 1, 100000, 0);
+                // (colour, intensity, distance, decay)
+                
+                scene.add(light);
+            }
+
+            function addAmbientLight() {
+                // Soft white light
+                const light = new THREE.AmbientLight(0x404040); 
+                scene.add(light);
+                
+            }
+
+            function orbitEarthSystem() {
+                let time = earthOrbitSpeed * performance.now();
+                let t = time % 1;
+                let point = earthOrbitPath.getPoint(t);
+                earthSystem.position.set(point.x, 0, point.y);
+            }
+
+            function orbitMoon() {
+                let t = moonOrbitSpeed * performance.now();
+                
+                // Set moon position
+                moonMesh.position.set(
+                    moonOrbitRadius * Math.cos(t * moonOrbitSpeed), 0,
+                    moonOrbitRadius * Math.sin(t * moonOrbitSpeed));
+            }
+
+            function animate() {
+                renderer.render(scene, camera);
+
+                // Keeps a loop of the animation going as it calls itself
+                requestAnimationFrame(animate);
+                sunMesh.rotation.y += sunRotationSpeed;
+                orbitEarthSystem();
+                orbitMoon();
+            }
+            
+            // Begin
+            init();
+            animate();
+        </script>
+    </body>
+</html>
