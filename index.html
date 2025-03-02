@@ -21,6 +21,8 @@
             var sunMesh;
             var earthMesh;
             var moonMesh;
+            var cloudsMesh;
+            var starsMesh;
 
             var earthSystem;
 
@@ -32,11 +34,15 @@
             // Global constants
             // Physical attributes
             const moonOrbitRadius = 40;
-            const moonOrbitSpeed = 0.03;
+            const moonOrbitSpeed = 0.025;
 
-            const earthOrbitRadius = 200;
-            const earthOrbitSpeed = 0.00005;
+            const earthOrbitRadius = 400;
 
+            // Earth orbit per second
+            const earthOrbitSpeed = 0.01;
+            
+            const moonRotationSpeed = 0.01
+            const earthRotationSpeed = 0.03;
             const sunRotationSpeed = 0.001;
 
             const earthOrbitPath = new THREE.EllipseCurve(
@@ -51,6 +57,8 @@
             const sunTexture = loader.load("sun_texture.jpg");
             const earthTexture = loader.load("earth_texture.jpg");
             const moonTexture = loader.load("moon_texture.jpg");
+            const cloudsTexture = loader.load("clouds_texture.jpg");
+            const starsTexture = loader.load("stars_texture.jpg")
 
             function init() {
                 scene = new THREE.Scene();
@@ -89,6 +97,8 @@
                 shaderSun();
                 shaderEarth();
                 shaderMoon();
+                shaderClouds();
+                shaderStars();
                 scene.add(earthSystem);
 
                 earthOrbitLine();
@@ -103,6 +113,7 @@
                 controls = new OrbitControls(camera, renderer.domElement);
                 controls.autoRotate = true;
             }
+            
 
             function shaderSun() {
                 var sunGeometry = new THREE.SphereGeometry(109, 400, 200);
@@ -142,6 +153,19 @@
                 earthSystem.add(earthMesh);
             }
 
+            function shaderClouds() {
+                var cloudsGeometry = new THREE.SphereGeometry(25.1, 50, 50);
+                var cloudsMaterial = new THREE.MeshPhongMaterial({
+                    map: cloudsTexture,
+                    transparent: true,
+                    opacity: 0.35,
+                })
+
+                cloudsMesh = new THREE.Mesh(cloudsGeometry, cloudsMaterial);
+
+                earthSystem.add(cloudsMesh);
+            }
+
             function shaderMoon() {
                 var moonGeometry = new THREE.SphereGeometry(5, 40, 20);
                 var moonMaterial = new THREE.MeshPhongMaterial({
@@ -153,6 +177,18 @@
 
                 moonMesh.position.set(0, moonOrbitRadius, 0);
                 earthSystem.add(moonMesh);
+            }
+
+            function shaderStars() {
+                var starsGeometry = new THREE.SphereGeometry (1000);
+                var starsMaterial = new THREE.MeshPhongMaterial({
+                    map: starsTexture,
+                    side: THREE.DoubleSide,
+                })
+
+                starsMesh = new THREE.Mesh(starsGeometry, starsMaterial);
+                scene.add(starsMesh);
+                
             }
             
             function earthOrbitLine() {
@@ -177,7 +213,7 @@
 
             function addPointLight() {
                 // Decay 2 follows real-world falloff.
-                const light = new THREE.PointLight(0xffffff, 1, 100000, 0);
+                const light = new THREE.PointLight(0xffffff, 1.5, 100000000000, 2);
                 // (colour, intensity, distance, decay)
                 
                 scene.add(light);
@@ -191,7 +227,7 @@
             }
 
             function orbitEarthSystem() {
-                let time = earthOrbitSpeed * performance.now();
+                let time = (earthOrbitSpeed * performance.now())/1000;
                 let t = time % 1;
                 let point = earthOrbitPath.getPoint(t);
                 earthSystem.position.set(point.x, 0, point.y);
@@ -203,7 +239,24 @@
                 // Set moon position
                 moonMesh.position.set(
                     moonOrbitRadius * Math.cos(t * moonOrbitSpeed), 0,
-                    moonOrbitRadius * Math.sin(t * moonOrbitSpeed));
+                    moonOrbitRadius * Math.sin(-t * moonOrbitSpeed));
+            }
+            
+            function rotateMoon() {
+                moonMesh.rotation.y += moonRotationSpeed;
+            }
+
+            function rotateSun() {
+                sunMesh.rotation.y += sunRotationSpeed;
+            }
+
+            function rotateEarth() {
+                earthMesh.rotation.y += earthRotationSpeed;
+                rotateClouds();
+            }
+
+            function rotateClouds(){
+                cloudsMesh.rotation.y += earthRotationSpeed;
             }
 
             function animate() {
@@ -211,7 +264,9 @@
 
                 // Keeps a loop of the animation going as it calls itself
                 requestAnimationFrame(animate);
-                sunMesh.rotation.y += sunRotationSpeed;
+                rotateMoon();
+                rotateSun();
+                rotateEarth();
                 orbitEarthSystem();
                 orbitMoon();
             }
